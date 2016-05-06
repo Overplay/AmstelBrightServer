@@ -18,7 +18,6 @@ import android.widget.Toast;
 
 public class AmstelBrightServer extends Service {
 
-    UDPBeaconService udpBeaconService;
 
     Context mContext = getApplicationContext();
     final Messenger mMessenger = new Messenger(new IncomingHandler());
