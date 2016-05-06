@@ -20,23 +20,24 @@ import java.net.SocketException;
  */
 public class UDPBeaconService extends Service {
 
-    // TODO: get info from a config file
-    private static final String DEVICE_NAME = "Overplayer 1";
-    private static final String DEVICE_LOCATION = "Bar";
+    static final String TAG = "UDPBeaconService";
 
-    private static final String TAG = "UDPBeaconService";
-    private static int PORT = 9090;
-    private static int BEACON_FREQUENCY = 5000;  // time in ms between UDP broadcasts
+    static final String DEFAULT_DEVICE_NAME = "Overplayer";
+    static final String DEFAULT_DEVICE_LOCATION = "Bar";
+    static int DEFAULT_PORT = 9090;
+    static int DEFAULT_BEACON_FREQ = 5000;  // time in ms between UDP broadcasts
 
-    private String message;
-    private DatagramSocket socket;
-    private Boolean sending = false;
+    String mMessage;
+    int mPort;
+    int mBeaconFreq;
+    DatagramSocket mSocket;
+    Boolean mSending = false;
 
     private void sendUDPPacket() {
-        if (socket == null || socket.isClosed()) {
+        if (mSocket == null || mSocket.isClosed()) {
             try {
-                socket = new DatagramSocket(PORT);
-                socket.setBroadcast(true);
+                mSocket = new DatagramSocket(mPort);
+                mSocket.setBroadcast(true);
             } catch (SocketException e) {
                 Log.e(TAG, e.getLocalizedMessage());
                 return;
@@ -44,9 +45,9 @@ public class UDPBeaconService extends Service {
         }
 
         try {
-            DatagramPacket packet = new DatagramPacket(message.getBytes(), message.length(),
-                    getBroadcastAddress(), PORT);
-            socket.send(packet);
+            DatagramPacket packet = new DatagramPacket(mMessage.getBytes(), mMessage.length(),
+                    getBroadcastAddress(), mPort);
+            mSocket.send(packet);
         } catch (IOException e) {
             Log.e(TAG, e.getLocalizedMessage());
         }
@@ -55,26 +56,21 @@ public class UDPBeaconService extends Service {
 
     private void startBeacon() {
         Log.d(TAG, "startBeacon");
-        sending = true;
-
-        WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-        String mac = manager.getConnectionInfo().getMacAddress();
-        message = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
-                DEVICE_NAME, DEVICE_LOCATION, mac);
+        mSending = true;
 
         Thread UDPBeaconThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (sending) {
+                while (mSending) {
                     Log.d(TAG, "sending UDP packet");
                     sendUDPPacket();
                     try {
-                        Thread.sleep(BEACON_FREQUENCY);
+                        Thread.sleep(mBeaconFreq);
                     } catch (InterruptedException e) {
                         Log.e(TAG, e.getLocalizedMessage());
                     }
                 }
-                socket.close();
+                mSocket.close();
             }
         });
 
@@ -83,7 +79,7 @@ public class UDPBeaconService extends Service {
 
     private void stopBeacon() {
         Log.d(TAG, "stopBeacon");
-        sending = false;
+        mSending = false;
     }
 
     private InetAddress getBroadcastAddress() throws IOException {
@@ -102,14 +98,39 @@ public class UDPBeaconService extends Service {
     @Override
     public void onCreate() {
         Log.d(TAG, "onCreate");
-        startBeacon();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // This restarts the service if it is killed by Android
         Toast.makeText(this, "Starting UDP Beacon", Toast.LENGTH_SHORT).show();
-        return Service.START_NOT_STICKY;
+
+        if (intent != null) {
+            if (intent.getStringExtra("data") != null) {
+                mMessage = intent.getStringExtra("data");
+            } else {
+                WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+                String mac = manager.getConnectionInfo().getMacAddress();
+                mMessage = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
+                        DEFAULT_DEVICE_NAME, DEFAULT_DEVICE_LOCATION, mac);
+            }
+
+            mPort = intent.getIntExtra("port", DEFAULT_PORT);
+            mBeaconFreq = intent.getIntExtra("beaconFreq", DEFAULT_BEACON_FREQ);
+
+        } else {
+            WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+            String mac = manager.getConnectionInfo().getMacAddress();
+            mMessage = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
+                    DEFAULT_DEVICE_NAME, DEFAULT_DEVICE_LOCATION, mac);
+            mPort = DEFAULT_PORT;
+            mBeaconFreq = DEFAULT_BEACON_FREQ;
+        }
+
+        Log.d(TAG, mMessage + " " + mPort + " " + mBeaconFreq);
+
+        startBeacon();
+
+        return Service.START_STICKY;
     }
 
     @Override

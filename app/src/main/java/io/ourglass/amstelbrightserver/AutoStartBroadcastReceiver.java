@@ -12,9 +12,12 @@ public class AutoStartBroadcastReceiver extends BroadcastReceiver {
 
     public static final String TAG = "AutoStartBroadcastRX";
 
-    @Override
     public void onReceive(Context context, Intent i) {
-        Intent intent = new Intent(context, AmstelBrightServer.class);
+        Intent intent = new Intent(context, UDPBeaconService.class)
+                .putExtra("data", "some data to broadcast")
+                .putExtra("port", 1234)
+                .putExtra("beaconFreq", 2000);
+
         context.startService(intent);
         Log.d(TAG, "onReceive");
     }
