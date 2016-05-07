@@ -1,4 +1,4 @@
-package io.ourglass.amstelbrightserver;
+package io.ourglass.amstelbrighthttp;
 
 import android.app.Service;
 import android.content.Context;
@@ -9,6 +9,8 @@ import android.os.Message;
 import android.os.Messenger;
 import android.widget.Toast;
 
+import io.ourglass.amstelbrightserver.UDPBeaconService;
+
 /**
  * This is the parent server class that kicks off everybody else: UDP, Bluetooth, HTTP
  *
@@ -16,13 +18,14 @@ import android.widget.Toast;
  * Mitch Kahn, May 2016
  */
 
-public class AmstelBrightServer extends Service {
+public class HTTPServer extends Service {
 
+    public static final String TAG = "HTTPServer";
 
     Context mContext = getApplicationContext();
     final Messenger mMessenger = new Messenger(new IncomingHandler());
 
-    public AmstelBrightServer() {
+    public HTTPServer() {
     }
 
     /** indicates how to behave if the service is killed */
