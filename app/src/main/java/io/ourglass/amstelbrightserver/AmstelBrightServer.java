@@ -55,7 +55,7 @@ public class AmstelBrightServer extends Service {
     /** A client is binding to the service with bindService() */
     @Override
     public IBinder onBind(Intent intent) {
-        dbToastr( "binding" );
+        dbToastr("ABS: binding");
         return mMessenger.getBinder();
     }
 
@@ -63,7 +63,7 @@ public class AmstelBrightServer extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         super.onUnbind(intent);
-        dbToastr("binding");
+        dbToastr("ABS: unbinding");
         return mAllowRebind;
     }
 
@@ -83,7 +83,7 @@ public class AmstelBrightServer extends Service {
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case 1:
-                    Toast.makeText(mContext, "hello!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "hello!", Toast.LENGTH_SHORT).show();
                     break;
                 case 2:
                     Toast.makeText(getApplicationContext(), "beer thirty!", Toast.LENGTH_SHORT).show();
