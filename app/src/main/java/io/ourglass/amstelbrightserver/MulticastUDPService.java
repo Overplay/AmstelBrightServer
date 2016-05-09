@@ -3,13 +3,17 @@ package io.ourglass.amstelbrightserver;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioFormat;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
@@ -22,12 +26,21 @@ public class MulticastUDPService extends Service {
 
     static final String DEFAULT_INET_ADDR = "224.0.0.3";
     static final int DEFAULT_PORT = 8888;
+    static final int PACKET_SIZE = 1200;
+    static final int BUFFER_SIZE = 4096;
+
+    static final int SAMPLE_RATE = 32000;
+    static final int SAMPLE_SIZE_BITS = 16;
+    static final int CHANNELS = 2;
+    static final boolean SIGNED = true;
+    static final boolean BIG_ENDIAN = false;
 
     String mAddr;
     int mPort;
     InetAddress mInetAddr = null;
-    DatagramSocket mSocket = null;
+    MulticastSocket mSocket = null;
     Boolean mMulticasting = false;
+    AudioFormat mAudioFormat = null;
 
     private void startMulticasting() {
         Log.d(TAG, "startMulticasting");
@@ -66,12 +79,27 @@ public class MulticastUDPService extends Service {
 
         if (mSocket == null || mSocket.isClosed()) {
             try {
-                mSocket = new DatagramSocket(mPort);
-            } catch (SocketException e) {
+                mSocket = new MulticastSocket(mPort);
+            } catch (IOException e) {
                 Log.e(TAG, e.getLocalizedMessage());
+                return;
             }
         }
+
+        byte[] data = new byte[PACKET_SIZE];
+        //mSocket.send(new DatagramPacket())
     }
+
+    /*private AudioFormat getAudioFormat() {
+        if (mAudioFormat != null) {
+            return mAudioFormat;
+        }
+
+        AudioFormat.Builder ab = new AudioFormat.Builder();
+        ab.setSampleRate(SAMPLE_RATE);
+
+        return ab.build();
+    }*/
 
     @Override
     public void onCreate() {

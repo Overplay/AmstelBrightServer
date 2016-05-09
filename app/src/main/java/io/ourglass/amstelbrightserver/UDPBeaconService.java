@@ -70,7 +70,9 @@ public class UDPBeaconService extends Service {
                         Log.e(TAG, e.getLocalizedMessage());
                     }
                 }
-                mSocket.close();
+                if (mSocket != null) {
+                    mSocket.close();
+                }
             }
         });
 
@@ -104,6 +106,8 @@ public class UDPBeaconService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Toast.makeText(this, "Starting UDP Beacon", Toast.LENGTH_SHORT).show();
 
+        // when using START_STICKY, after the service is unexpectedly stopped it may be
+        // started again with a null intent
         if (intent != null) {
             if (intent.getStringExtra("data") != null) {
                 mMessage = intent.getStringExtra("data");
@@ -130,7 +134,7 @@ public class UDPBeaconService extends Service {
 
         startBeacon();
 
-        return Service.START_STICKY;
+        return Service.START_STICKY;  // the OS will recreate the service when necessary
     }
 
     @Override
