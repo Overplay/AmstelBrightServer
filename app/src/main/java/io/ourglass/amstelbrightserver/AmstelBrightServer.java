@@ -103,6 +103,9 @@ public class AmstelBrightServer extends Service {
                 .putExtra("beaconFreq", 2000);*/
         startService(intent);
 
+        Intent audioIntent = new Intent(this, AudioStreamService.class);
+        startService(audioIntent);
+
     }
 
 
