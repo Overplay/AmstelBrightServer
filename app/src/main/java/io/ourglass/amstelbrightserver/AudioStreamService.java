@@ -2,26 +2,14 @@ package io.ourglass.amstelbrightserver;
 
 import android.app.Service;
 import android.content.Intent;
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioRecord;
-import android.media.AudioTrack;
-import android.media.MediaRecorder;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.MulticastSocket;
-import java.net.SocketException;
-import java.net.UnknownHostException;
 
 /**
  * Created by atorres on 5/6/16.
@@ -30,7 +18,7 @@ public class AudioStreamService extends Service {
 
     static final String TAG = "AudioStreamService";
 
-    static final String DEFAULT_INET_ADDR = "207.62.163.38"; // sending directly to test tablet IP
+    static final String DEFAULT_INET_ADDR = "207.62.162.232"; // sending directly to test tablet IP
     //static final String DEFAULT_INET_ADDR = "224.0.0.3";
     static final int DEFAULT_PORT = 8888;
     static final int DEFAULT_TTL = 12;
@@ -44,6 +32,7 @@ public class AudioStreamService extends Service {
     int mTTL;
     InetAddress mInetAddr = null;
     Boolean mStreaming = false;
+    DatagramSocket mSocket = null;
 
     public void stream() {
         mStreaming = true;
@@ -56,7 +45,9 @@ public class AudioStreamService extends Service {
 
                 try {
                     mInetAddr = InetAddress.getByName(mAddr);
-                    DatagramSocket sock = new DatagramSocket();
+                    if (mSocket == null || mSocket.isClosed()) {
+                        mSocket = new DatagramSocket();
+                    }
                     InputStream audio_stream = getResources().openRawResource(
                             getResources().getIdentifier("sample", "raw", getPackageName()));
 
@@ -64,10 +55,14 @@ public class AudioStreamService extends Service {
                         int bytes_read = audio_stream.read(buf, 0, BUF_SIZE);
                         DatagramPacket pack = new DatagramPacket(buf, bytes_read,
                                 mInetAddr, mPort);
-                        sock.send(pack);
+                        mSocket.send(pack);
                         bytes_count += bytes_read;
                         Log.d(TAG, "bytes_count : " + bytes_count);
                         Thread.sleep(SAMPLE_INTERVAL, 0);
+                    }
+
+                    if (mSocket != null && !mSocket.isClosed()) {
+                        mSocket.close();
                     }
                 }
                 catch (Exception e) {
@@ -82,6 +77,9 @@ public class AudioStreamService extends Service {
     private void stopStream() {
         Log.d(TAG, "stopStream");
         mStreaming = false;
+        if (mSocket != null && !mSocket.isClosed()) {
+            mSocket.close();
+        }
     }
 
     @Override
