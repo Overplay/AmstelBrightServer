@@ -1,10 +1,13 @@
 package io.ourglass.amstelbrightserver;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
@@ -12,8 +15,8 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.MulticastSocket;
 import java.nio.ByteBuffer;
 
 /**
@@ -23,8 +26,7 @@ public class AudioStreamService extends Service {
 
     static final String TAG = "AudioStreamService";
 
-    static final String DEFAULT_INET_ADDR = "207.62.162.211"; // sending directly to test tablet IP
-    //static final String DEFAULT_INET_ADDR = "224.0.0.3";
+    static final String DEFAULT_INET_ADDR = "224.0.0.3";
     static final int DEFAULT_PORT = 8888;
     static final int DEFAULT_TTL = 12;
 
@@ -38,8 +40,10 @@ public class AudioStreamService extends Service {
     private int mTTL;
     private InetAddress mInetAddr = null;
     private Boolean mStreaming = false;
-    private DatagramSocket mSocket = null;
+    private MulticastSocket mSocket = null;
+    //private DatagramSocket mSocket = null;
     private MediaCodec mEncoder;
+    private WifiManager.MulticastLock mMulticastLock;
 
     @Override
     public void onCreate() {
@@ -64,6 +68,10 @@ public class AudioStreamService extends Service {
             mPort = DEFAULT_PORT;
         }
 
+        WifiManager wifi = (WifiManager)getSystemService(Context.WIFI_SERVICE);
+        mMulticastLock = wifi.createMulticastLock(TAG);
+        mMulticastLock.acquire();
+
         stream();
 
         return Service.START_STICKY;
@@ -73,6 +81,7 @@ public class AudioStreamService extends Service {
     public void onDestroy() {
         Log.d(TAG, "onDestroy");
         stopStream();
+        mMulticastLock.release();
     }
 
     @Override
@@ -92,7 +101,8 @@ public class AudioStreamService extends Service {
                 try {
                     mInetAddr = InetAddress.getByName(mAddr);
                     if (mSocket == null || mSocket.isClosed()) {
-                        mSocket = new DatagramSocket();
+                        mSocket = new MulticastSocket(mPort);
+                        mSocket.joinGroup(mInetAddr);
                     }
 
                     InputStream audio_stream = getResources().openRawResource(
@@ -104,10 +114,23 @@ public class AudioStreamService extends Service {
                     while (mStreaming) {
                         int bytes_read = audio_stream.read(dataBuffer, 0, BUF_SIZE);
 
+                        ByteBuffer[] inputBuffers = null, outputBuffers = null;
+                        ByteBuffer inputBuffer = null, outputBuffer = null;
+
+                        if (Build.VERSION.SDK_INT < 21) {
+                            inputBuffers = mEncoder.getInputBuffers();
+                            outputBuffers = mEncoder.getOutputBuffers();
+                        }
+
                         int inputBufferIdx = mEncoder.dequeueInputBuffer(-1);
 
                         if (inputBufferIdx >= 0) {
-                            ByteBuffer inputBuffer = mEncoder.getInputBuffer(inputBufferIdx);
+
+                            if (Build.VERSION.SDK_INT >= 21) {
+                                inputBuffer = mEncoder.getInputBuffer(inputBufferIdx);
+                            } else if (inputBuffers != null) {
+                                inputBuffer = inputBuffers[inputBufferIdx];
+                            }
 
                             if (inputBuffer != null) {
                                 inputBuffer.clear();
@@ -120,7 +143,12 @@ public class AudioStreamService extends Service {
                         int outputBufferIdx = mEncoder.dequeueOutputBuffer(bufferInfo, 0);
 
                         while (outputBufferIdx >= 0) {
-                            ByteBuffer outputBuffer = mEncoder.getOutputBuffer(outputBufferIdx);
+
+                            if (Build.VERSION.SDK_INT >= 21) {
+                                outputBuffer = mEncoder.getOutputBuffer(outputBufferIdx);
+                            } else if (outputBuffers != null) {
+                                outputBuffer = outputBuffers[outputBufferIdx];
+                            }
 
                             if (outputBuffer != null) {
                                 outputBuffer.position(bufferInfo.offset);
@@ -131,6 +159,8 @@ public class AudioStreamService extends Service {
 
                                 DatagramPacket packet = new DatagramPacket(outData, outData.length,
                                         mInetAddr, mPort);
+                                mSocket.setTimeToLive(1);
+
                                 mSocket.send(packet);
                             }
 
@@ -145,7 +175,8 @@ public class AudioStreamService extends Service {
                 }
 
                 catch (Exception e) {
-                    Log.e(TAG, e.getLocalizedMessage());
+                    Log.e(TAG, "Exception: " + e);
+                    e.printStackTrace();
 
                 } finally {
                     if (mEncoder != null) {
