@@ -26,8 +26,9 @@ public class AudioStreamService extends Service {
 
     static final String TAG = "AudioStreamService";
 
-    static final String DEFAULT_INET_ADDR = "224.0.0.3";
-    static final int DEFAULT_PORT = 8888;
+    static final String DEFAULT_INET_ADDR = "239.255.255.250";
+    static final int DEFAULT_MCAST_PORT = 1900;
+    static final int DEFAULT_LOCAL_PORT = 55325;
     static final int DEFAULT_TTL = 12;
 
     static final int SAMPLE_RATE = 44100; // Hz
@@ -40,8 +41,9 @@ public class AudioStreamService extends Service {
     static final int CHANNEL_COUNT = 1;
 
     private String mAddr;
-    private int mPort;
-    private int mTTL;
+    private int mMcastPort = DEFAULT_MCAST_PORT;
+    private int mLocalPort = DEFAULT_LOCAL_PORT;
+    private int mTTL = DEFAULT_TTL;
     private InetAddress mInetAddr = null;
     private Boolean mStreaming = false;
     private MulticastSocket mSocket = null;
@@ -63,12 +65,14 @@ public class AudioStreamService extends Service {
             } else {
                 mAddr = DEFAULT_INET_ADDR;
             }
-            mPort = intent.getIntExtra("port", DEFAULT_PORT);
+            mMcastPort = intent.getIntExtra("mcastPort", DEFAULT_MCAST_PORT);
+            mLocalPort = intent.getIntExtra("localPort", DEFAULT_LOCAL_PORT);
             mTTL = intent.getIntExtra("ttl", DEFAULT_TTL);
 
         } else {
             mAddr = DEFAULT_INET_ADDR;
-            mPort = DEFAULT_PORT;
+            mMcastPort = DEFAULT_MCAST_PORT;
+            mLocalPort = DEFAULT_LOCAL_PORT;
         }
 
         WifiManager wifi = (WifiManager)getSystemService(Context.WIFI_SERVICE);
@@ -106,7 +110,7 @@ public class AudioStreamService extends Service {
                     // set up multicast socket
                     mInetAddr = InetAddress.getByName(mAddr);
                     if (mSocket == null || mSocket.isClosed()) {
-                        mSocket = new MulticastSocket(mPort);
+                        mSocket = new MulticastSocket(mLocalPort);
                         mSocket.joinGroup(mInetAddr);
                     }
 
@@ -172,7 +176,7 @@ public class AudioStreamService extends Service {
                                 outputBuffer.get(outData);
 
                                 DatagramPacket packet = new DatagramPacket(outData, outData.length,
-                                        mInetAddr, mPort);
+                                        mInetAddr, mMcastPort);
 
                                 mSocket.setTimeToLive(mTTL);
                                 mSocket.send(packet);

@@ -106,28 +106,21 @@ public class UDPBeaconService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Toast.makeText(this, "Starting UDP Beacon", Toast.LENGTH_SHORT).show();
 
-        // when using START_STICKY, after the service is unexpectedly stopped it may be
-        // started again with a null intent
+        WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        String mac = manager.getConnectionInfo().getMacAddress();
+        mMessage = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
+                DEFAULT_DEVICE_NAME, DEFAULT_DEVICE_LOCATION, mac);
+        mPort = DEFAULT_PORT;
+        mBeaconFreq = DEFAULT_BEACON_FREQ;
+
+        // must check if intent is null when using START_STICKY
         if (intent != null) {
             if (intent.getStringExtra("data") != null) {
                 mMessage = intent.getStringExtra("data");
-            } else {
-                WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-                String mac = manager.getConnectionInfo().getMacAddress();
-                mMessage = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
-                        DEFAULT_DEVICE_NAME, DEFAULT_DEVICE_LOCATION, mac);
             }
-
             mPort = intent.getIntExtra("port", DEFAULT_PORT);
             mBeaconFreq = intent.getIntExtra("beaconFreq", DEFAULT_BEACON_FREQ);
 
-        } else {
-            WifiManager manager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-            String mac = manager.getConnectionInfo().getMacAddress();
-            mMessage = String.format("{\"name\": \"%s\", \"location\": \"%s\", \"mac\": \"%s\"}",
-                    DEFAULT_DEVICE_NAME, DEFAULT_DEVICE_LOCATION, mac);
-            mPort = DEFAULT_PORT;
-            mBeaconFreq = DEFAULT_BEACON_FREQ;
         }
 
         Log.d(TAG, mMessage + " " + mPort + " " + mBeaconFreq);
