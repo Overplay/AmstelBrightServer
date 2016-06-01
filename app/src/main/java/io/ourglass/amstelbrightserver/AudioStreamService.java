@@ -30,10 +30,14 @@ public class AudioStreamService extends Service {
     static final int DEFAULT_PORT = 8888;
     static final int DEFAULT_TTL = 12;
 
-    static final int SAMPLE_RATE = 44100;
+    static final int SAMPLE_RATE = 44100; // Hz
     static final int SAMPLE_INTERVAL = 20; // milliseconds
     static final int SAMPLE_SIZE = 2; // bytes per sample
     static final int BUF_SIZE = SAMPLE_INTERVAL*SAMPLE_INTERVAL*SAMPLE_SIZE*2;
+
+    // constants for MediaCodec configuration
+    static final int BIT_RATE = 64 * 1024;
+    static final int CHANNEL_COUNT = 1;
 
     private String mAddr;
     private int mPort;
@@ -41,7 +45,6 @@ public class AudioStreamService extends Service {
     private InetAddress mInetAddr = null;
     private Boolean mStreaming = false;
     private MulticastSocket mSocket = null;
-    //private DatagramSocket mSocket = null;
     private MediaCodec mEncoder;
     private WifiManager.MulticastLock mMulticastLock;
 
@@ -99,39 +102,48 @@ public class AudioStreamService extends Service {
                 byte[] dataBuffer = new byte[BUF_SIZE];
 
                 try {
+
+                    // set up multicast socket
                     mInetAddr = InetAddress.getByName(mAddr);
                     if (mSocket == null || mSocket.isClosed()) {
                         mSocket = new MulticastSocket(mPort);
                         mSocket.joinGroup(mInetAddr);
                     }
 
+                    // get audio stream from raw file (file is in res/raw/sample.wav)
                     InputStream audio_stream = getResources().openRawResource(
                             getResources().getIdentifier("sample", "raw", getPackageName()));
 
+                    // configure and start the MediaCodec encoder
                     setEncoder(SAMPLE_RATE);
                     mEncoder.start();
 
                     while (mStreaming) {
+                        // this is just used for debugging
                         int bytes_read = audio_stream.read(dataBuffer, 0, BUF_SIZE);
 
                         ByteBuffer[] inputBuffers = null, outputBuffers = null;
                         ByteBuffer inputBuffer = null, outputBuffer = null;
 
+                        // use different method for SDK's before 21
                         if (Build.VERSION.SDK_INT < 21) {
                             inputBuffers = mEncoder.getInputBuffers();
                             outputBuffers = mEncoder.getOutputBuffers();
                         }
 
+                        // get index of the next available input buffer
                         int inputBufferIdx = mEncoder.dequeueInputBuffer(-1);
 
                         if (inputBufferIdx >= 0) {
 
+                            // get the next available input buffer
                             if (Build.VERSION.SDK_INT >= 21) {
                                 inputBuffer = mEncoder.getInputBuffer(inputBufferIdx);
                             } else if (inputBuffers != null) {
                                 inputBuffer = inputBuffers[inputBufferIdx];
                             }
 
+                            // put the audio data into the input buffer to be encoded
                             if (inputBuffer != null) {
                                 inputBuffer.clear();
                                 inputBuffer.put(dataBuffer);
@@ -144,12 +156,14 @@ public class AudioStreamService extends Service {
 
                         while (outputBufferIdx >= 0) {
 
+                            // get next available output buffer
                             if (Build.VERSION.SDK_INT >= 21) {
                                 outputBuffer = mEncoder.getOutputBuffer(outputBufferIdx);
                             } else if (outputBuffers != null) {
                                 outputBuffer = outputBuffers[outputBufferIdx];
                             }
 
+                            // get the encoded audio data from the output buffer and send it out
                             if (outputBuffer != null) {
                                 outputBuffer.position(bufferInfo.offset);
                                 outputBuffer.limit(bufferInfo.offset + bufferInfo.size);
@@ -159,8 +173,8 @@ public class AudioStreamService extends Service {
 
                                 DatagramPacket packet = new DatagramPacket(outData, outData.length,
                                         mInetAddr, mPort);
-                                mSocket.setTimeToLive(1);
 
+                                mSocket.setTimeToLive(mTTL);
                                 mSocket.send(packet);
                             }
 
@@ -195,17 +209,14 @@ public class AudioStreamService extends Service {
     private void stopStream() {
         Log.d(TAG, "stopStream");
         mStreaming = false;
-        if (mSocket != null && !mSocket.isClosed()) {
-            mSocket.close();
-        }
     }
 
     private void setEncoder(int sampleRate) throws IOException {
         mEncoder = MediaCodec.createEncoderByType("audio/mp4a-latm");
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, "audio/mp4a-latm");
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 64 * 1024);
-        format.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 1);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE);
+        format.setInteger(MediaFormat.KEY_CHANNEL_COUNT, CHANNEL_COUNT);
         format.setInteger(MediaFormat.KEY_SAMPLE_RATE, sampleRate);
         format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectHE);
         mEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
